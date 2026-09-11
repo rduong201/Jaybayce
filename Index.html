@@ -97,7 +97,9 @@
     box-shadow:0 12px 20px -8px rgba(0,0,0,0.5);
   }
   .route-wrap-inner{max-width:900px;margin:0 auto;padding:0 20px;}
-  .route-label{font-family:'DM Mono', monospace;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:var(--steel-dim);margin-bottom:4px;}
+  .route-label-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
+  .route-label{font-family:'DM Mono', monospace;font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:var(--steel-dim);margin-bottom:0;}
+  .route-clock{font-family:'DM Mono', monospace;font-size:10px;font-weight:700;color:var(--steel-dim);}
   .route-scroll-outer{position:relative;}
   .route-scroll{overflow-x:auto;padding:20px 0 16px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
   .route-line{display:flex;align-items:center;min-width:680px;padding:2px 4px;position:relative;}
@@ -118,7 +120,6 @@
   .city-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;}
   .city-name{font-size:52px;line-height:0.95;margin:0;}
   .city-state{font-family:'DM Mono', monospace;font-size:11px;letter-spacing:0.14em;color:var(--steel-dim);text-transform:uppercase;margin-top:6px;}
-  .city-clock{color:var(--steel-dim);font-weight:700;}
   .stop-number{font-family:'DM Mono', monospace;font-size:34px;color:rgba(185,142,255,0.28);font-weight:500;line-height:1;}
 
   /* venue block */
@@ -187,7 +188,7 @@
   .day-badge.travel{color:var(--route-orange);border-color:rgba(255,93,162,0.4);}
   .day-badge.off{color:var(--holo-c);border-color:rgba(185,142,255,0.5);border-style:dashed;}
   .day-simple{font-size:12.5px;color:var(--steel-dim);font-family:'DM Mono', monospace;padding-left:2px;}
-  .flight-card{background:var(--paper-2);border-radius:14px;padding:14px;display:block;margin-top:8px;text-decoration:none;color:inherit;transition:transform 0.15s ease;}
+  .flight-card{background:var(--paper-2);border-radius:14px;padding:14px;display:block;margin-top:16px;text-decoration:none;color:inherit;transition:transform 0.15s ease;}
   .flight-card:hover{transform:translateY(-2px);}
   .flight-card .photo-slot{width:100%;aspect-ratio:1/1;height:auto;margin-bottom:10px;}
   .flight-info{min-width:0;}
@@ -210,7 +211,7 @@
   .flight-times.cancelled .flight-time-val{color:#C0392B;}
   .flight-times.landed .flight-time-val{color:#7A4FD1;}
   .flight-times{font-family:'DM Mono', monospace;font-size:10.5px;color:var(--steel-dim);margin:0 0 3px;}
-  .hotel-card{background:var(--paper-2);border-radius:14px;padding:14px;margin-top:8px;display:flex;gap:12px;align-items:stretch;}
+  .hotel-card{background:var(--paper-2);border-radius:14px;padding:14px;margin-top:16px;display:flex;gap:12px;align-items:stretch;}
   .hotel-photo{width:100px;height:100px;flex-shrink:0;font-size:8px;}
   .hotel-info{flex:1;min-width:0;}
   .hotel-label{font-family:'DM Mono', monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--holo-c);margin:0 0 4px;}
@@ -220,7 +221,7 @@
   .hotel-times{font-family:'DM Mono', monospace;font-size:10.5px;color:var(--route-orange);margin:0 0 8px;}
   .hotel-links{display:flex;gap:6px;flex-wrap:wrap;}
 
-  .stop-list{display:flex;flex-direction:column;gap:26px;}
+  .stop-list{display:flex;flex-direction:column;gap:16px;}
   .stop-card{background:var(--paper-2);border-radius:14px;padding:14px;position:relative;box-shadow:0 4px 14px rgba(37,26,56,0.12);border:1px solid rgba(37,26,56,0.06);}
   .stop-card-top{display:flex;gap:10px;align-items:flex-start;}
   .stop-idx{
@@ -285,7 +286,7 @@
 
   <div class="route-wrap">
    <div class="route-wrap-inner">
-    <div class="route-label">Tap a stop to jump →</div>
+    <div class="route-label-row"><div class="route-label">Tap a stop to jump →</div><span class="route-clock" id="routeClock">--:--</span></div>
     <div class="route-scroll-outer">
      <div class="route-scroll" id="routeScroll">
       <div class="route-line">
@@ -312,7 +313,7 @@
     <!-- ============ LOS ANGELES ============ -->
     <section class="city-card" id="la">
       <div class="city-top">
-        <div><h2 class="city-name display">Los Angeles</h2><div class="city-state">California · Sept 13 · <span class="city-clock" data-tz="America/Los_Angeles">--:--</span></div></div>
+        <div><h2 class="city-name display">Los Angeles</h2><div class="city-state">California · Sept 13</div></div>
         <div class="stop-number mono">00</div>
       </div>
 
@@ -333,7 +334,7 @@
     <!-- ============ SAN FRANCISCO ============ -->
     <section class="city-card" id="sf">
       <div class="city-top">
-        <div><h2 class="city-name display">San Francisco</h2><div class="city-state">California · Sept 15–17 · <span class="city-clock" data-tz="America/Los_Angeles">--:--</span></div></div>
+        <div><h2 class="city-name display">San Francisco</h2><div class="city-state">California · Sept 15–17</div></div>
         <div class="stop-number mono">01</div>
       </div>
 
@@ -381,7 +382,7 @@
     <!-- ============ TACOMA ============ -->
     <section class="city-card" id="tacoma">
       <div class="city-top">
-        <div><h2 class="city-name display">Tacoma</h2><div class="city-state">Washington · Sept 17–20 · <span class="city-clock" data-tz="America/Los_Angeles">--:--</span></div></div>
+        <div><h2 class="city-name display">Tacoma</h2><div class="city-state">Washington · Sept 17–20</div></div>
         <div class="stop-number mono">02</div>
       </div>
 
@@ -442,7 +443,7 @@
     <!-- ============ NEW YORK ============ -->
     <section class="city-card" id="nyc">
       <div class="city-top">
-        <div><h2 class="city-name display">New York</h2><div class="city-state">New York · Sept 20–24 · <span class="city-clock" data-tz="America/New_York">--:--</span></div></div>
+        <div><h2 class="city-name display">New York</h2><div class="city-state">New York · Sept 20–24</div></div>
         <div class="stop-number mono">03</div>
       </div>
 
@@ -498,7 +499,7 @@
     <!-- ============ DALLAS ============ -->
     <section class="city-card" id="dallas">
       <div class="city-top">
-        <div><h2 class="city-name display">Dallas</h2><div class="city-state">Texas · Sept 24–26 · <span class="city-clock" data-tz="America/Chicago">--:--</span></div></div>
+        <div><h2 class="city-name display">Dallas</h2><div class="city-state">Texas · Sept 24–26</div></div>
         <div class="stop-number mono">04</div>
       </div>
 
@@ -520,7 +521,7 @@
     <!-- ============ CHICAGO ============ -->
     <section class="city-card" id="chicago">
       <div class="city-top">
-        <div><h2 class="city-name display">Chicago</h2><div class="city-state">Illinois · Sept 26–28 · <span class="city-clock" data-tz="America/Chicago">--:--</span></div></div>
+        <div><h2 class="city-name display">Chicago</h2><div class="city-state">Illinois · Sept 26–28</div></div>
         <div class="stop-number mono">05</div>
       </div>
 
@@ -608,6 +609,27 @@
         routeScroll.scrollTo({ left: target, behavior: 'smooth' });
       }
 
+      var cityTimeZones = {
+        la: 'America/Los_Angeles',
+        sf: 'America/Los_Angeles',
+        tacoma: 'America/Los_Angeles',
+        nyc: 'America/New_York',
+        dallas: 'America/Chicago',
+        chicago: 'America/Chicago'
+      };
+      var routeClockEl = document.getElementById('routeClock');
+
+      function updateRouteClock(city){
+        if (!routeClockEl) return;
+        var tz = cityTimeZones[city];
+        if (!tz) return;
+        try {
+          routeClockEl.textContent = new Date().toLocaleTimeString('en-US', {
+            timeZone: tz, hour: 'numeric', minute: '2-digit'
+          });
+        } catch (e) { /* unsupported timezone — leave as-is */ }
+      }
+
       function updatePlane(){
         var city = getActiveCity();
         var dot = stopDots[city];
@@ -615,6 +637,7 @@
 
         positionPlane(dot);
         updateDots(city);
+        updateRouteClock(city);
 
         if (city !== lastCity) {
           lastCity = city;
@@ -629,6 +652,7 @@
       window.addEventListener('load', updatePlane);
       setTimeout(updatePlane, 50);
       setTimeout(updatePlane, 400);
+      setInterval(function(){ updateRouteClock(getActiveCity()); }, 30 * 1000);
     })();
 
     function toggleDayBlock(el, evt){
@@ -961,27 +985,6 @@
 
       updateBanner();
       setInterval(updateBanner, 60 * 1000);
-    })();
-
-    // ===== City local-time clocks =====
-    (function(){
-      var clocks = document.querySelectorAll('.city-clock[data-tz]');
-      if (!clocks.length) return;
-
-      function updateClocks(){
-        clocks.forEach(function(el){
-          var tz = el.getAttribute('data-tz');
-          try {
-            var timeStr = new Date().toLocaleTimeString('en-US', {
-              timeZone: tz, hour: 'numeric', minute: '2-digit'
-            });
-            el.textContent = timeStr;
-          } catch (e) { /* unsupported timezone string — leave as-is */ }
-        });
-      }
-
-      updateClocks();
-      setInterval(updateClocks, 30 * 1000);
     })();
 
     // ===== Countdown bar: boarding (from 12h out) then time-till-landing =====
