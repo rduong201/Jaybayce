@@ -86,6 +86,7 @@
     display:flex;align-items:center;justify-content:center;gap:10px;
     box-shadow:0 -8px 20px rgba(0,0,0,0.35);
   }
+  .countdown-bar[hidden]{display:none;}
   .countdown-label{font-family:'DM Mono', monospace;font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--steel);}
   .countdown-time{font-family:'Unbounded', sans-serif;font-weight:700;font-size:17px;color:var(--laminate);}
 
@@ -211,7 +212,7 @@
   .flight-times.cancelled .flight-time-val{color:#C0392B;}
   .flight-times.landed .flight-time-val{color:#7A4FD1;}
   .flight-times{font-family:'DM Mono', monospace;font-size:10.5px;color:var(--steel-dim);margin:0 0 3px;}
-  .hotel-card{background:var(--paper-2);border-radius:14px;padding:14px;margin-top:16px;display:flex;gap:12px;align-items:stretch;}
+  .hotel-card{background:var(--paper-2);border-radius:14px;padding:14px;margin-top:16px;margin-bottom:16px;display:flex;gap:12px;align-items:stretch;}
   .hotel-photo{width:100px;height:100px;flex-shrink:0;font-size:8px;}
   .hotel-info{flex:1;min-width:0;}
   .hotel-label{font-family:'DM Mono', monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--holo-c);margin:0 0 4px;}
