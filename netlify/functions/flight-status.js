@@ -61,12 +61,24 @@ exports.handler = async function (event) {
       };
     }
 
-    // Format an ISO-local timestring (e.g. "2026-09-15T13:47:00-07:00") as "1:47 PM"
-    // WITHOUT reinterpreting it in the server's own timezone â the offset in the
-    // string is already the airport's local time, so we just read the HH:MM directly.
-    function formatLocalTime(isoStr) {
-      if (!isoStr) return null;
-      const m = isoStr.match(/T(\d{2}):(\d{2})/);
+    // AeroDataBox returns timestamps as either a plain string, or (more commonly)
+    // a nested object like { utc: "...", local: "2026-09-15 13:25-07:00" }.
+    // This pulls out the local time string regardless of which shape shows up,
+    // and never throws on an unexpected type.
+    function extractLocalTimeString(field) {
+      if (!field) return null;
+      if (typeof field === 'string') return field;
+      if (typeof field === 'object' && typeof field.local === 'string') return field.local;
+      return null;
+    }
+
+    // Format a local timestring (e.g. "2026-09-15 13:47-07:00" or "...T13:47:00-07:00")
+    // as "1:47 PM" — reads the HH:MM directly rather than reinterpreting it in the
+    // server's own timezone (the value is already the airport's local wall-clock time).
+    function formatLocalTime(field) {
+      const raw = extractLocalTimeString(field);
+      if (!raw || typeof raw !== 'string') return null;
+      const m = raw.match(/[T ](\d{2}):(\d{2})/);
       if (!m) return null;
       let hour = parseInt(m[1], 10);
       const minute = m[2];
@@ -82,20 +94,27 @@ exports.handler = async function (event) {
 
     const dep = entry.departure || {};
     const arr = entry.arrival || {};
-    const depBest = dep.actualTimeLocal || dep.revisedTimeLocal || dep.scheduledTimeLocal || dep.scheduledTime || null;
-    const arrBest = arr.actualTimeLocal || arr.revisedTimeLocal || arr.scheduledTimeLocal || arr.scheduledTime || null;
+    const depBestStr = extractLocalTimeString(dep.actualTime) || extractLocalTimeString(dep.runwayTime) ||
+                        extractLocalTimeString(dep.revisedTime) || extractLocalTimeString(dep.scheduledTime) ||
+                        extractLocalTimeString(dep.actualTimeLocal) || extractLocalTimeString(dep.revisedTimeLocal) ||
+                        extractLocalTimeString(dep.scheduledTimeLocal) || null;
+    const arrBestStr = extractLocalTimeString(arr.actualTime) || extractLocalTimeString(arr.runwayTime) ||
+                        extractLocalTimeString(arr.revisedTime) || extractLocalTimeString(arr.scheduledTime) ||
+                        extractLocalTimeString(arr.actualTimeLocal) || extractLocalTimeString(arr.revisedTimeLocal) ||
+                        extractLocalTimeString(arr.scheduledTimeLocal) || null;
 
     if (rawStatus.indexOf('cancel') !== -1) {
       result = 'cancelled';
     } else if (rawStatus.indexOf('land') !== -1) {
       result = 'landed';
     } else {
-      const scheduled = dep.scheduledTimeLocal || dep.scheduledTime || null;
-      const revised = dep.revisedTimeLocal || dep.actualTimeLocal || null;
+      const scheduledStr = extractLocalTimeString(dep.scheduledTime) || extractLocalTimeString(dep.scheduledTimeLocal) || null;
+      const revisedStr = extractLocalTimeString(dep.revisedTime) || extractLocalTimeString(dep.actualTime) ||
+                          extractLocalTimeString(dep.revisedTimeLocal) || extractLocalTimeString(dep.actualTimeLocal) || null;
 
-      if (scheduled && revised) {
-        const schedMs = Date.parse(scheduled);
-        const revMs = Date.parse(revised);
+      if (scheduledStr && revisedStr) {
+        const schedMs = Date.parse(scheduledStr);
+        const revMs = Date.parse(revisedStr);
         if (!isNaN(schedMs) && !isNaN(revMs)) {
           delayMinutes = Math.round((revMs - schedMs) / 60000);
           if (delayMinutes > 10) result = 'delayed';
@@ -109,14 +128,14 @@ exports.handler = async function (event) {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300' // 5 min â plenty fresh, saves quota
+        'Cache-Control': 'public, max-age=300' // 5 min — plenty fresh, saves quota
       },
       body: JSON.stringify({
         status: result,
         delayMinutes,
         raw: entry.status || null,
-        departureTime: formatLocalTime(depBest),
-        arrivalTime: formatLocalTime(arrBest)
+        departureTime: formatLocalTime(depBestStr),
+        arrivalTime: formatLocalTime(arrBestStr)
       })
     };
   } catch (err) {
