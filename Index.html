@@ -154,7 +154,8 @@
   .weather-stat-label{font-family:'DM Mono', monospace;font-size:6.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--steel-dim);margin-top:0;}
   .weather-block{width:100%;margin-bottom:8px;}
   .weather-badge{display:inline-block;font-family:'DM Mono', monospace;font-size:8px;letter-spacing:0.04em;text-transform:uppercase;color:var(--steel-dim);margin-bottom:2px;}
-  .weather-block[data-live="true"] .weather-badge{color:#2ECC71;}
+  .weather-block[data-live="true"] .weather-badge{color:#2ECC71;animation:liveDimPulse 2.5s ease-in-out infinite;}
+  @keyframes liveDimPulse{0%,100%{opacity:1;}50%{opacity:0.45;}}
   .weather-block[data-live="true"] .weather-badge::before{content:'● ';}
   .weather-block[data-live="false"] .weather-badge::before{content:'○ ';}
   .weather-condition{font-family:'DM Mono', monospace;font-size:9.5px;color:var(--route-orange);background:rgba(255,93,162,0.1);border-radius:6px;padding:4px 8px;margin-top:4px;}
@@ -756,7 +757,9 @@
           departEl: card.querySelector('.flight-depart'),
           departVal: card.querySelector('.flight-depart .flight-time-val'),
           arriveEl: card.querySelector('.flight-arrive'),
-          arriveVal: card.querySelector('.flight-arrive .flight-time-val')
+          arriveVal: card.querySelector('.flight-arrive .flight-time-val'),
+          departureLocked: false,
+          arrivalLocked: false
         };
       });
 
@@ -800,15 +803,37 @@
         return (msToDeparture <= fourHours) ? (5 * 60 * 1000) : (30 * 60 * 1000);
       }
 
-      function setLiveTimes(f, cls, departureTime, arrivalTime){
-        if (departureTime && f.departVal) f.departVal.textContent = departureTime;
-        if (arrivalTime && f.arriveVal) f.arriveVal.textContent = arrivalTime;
-        if (f.departEl) f.departEl.className = 'flight-times flight-depart ' + cls;
-        if (f.arriveEl) f.arriveEl.className = 'flight-times flight-arrive ' + cls;
+      function statusLabel(status){
+        switch (status) {
+          case 'cancelled': return 'Cancelled';
+          case 'delayed':   return 'Delayed';
+          case 'early':     return 'Early';
+          case 'landed':    return 'Landed';
+          case 'on_time':   return 'On Time';
+          default:          return null;
+        }
+      }
+
+      // Update one leg's (departure or arrival) time + color — but only if it isn't
+      // already locked. Once locked (an ACTUAL time was reported), this leg's line
+      // is frozen permanently and every future call for it is a no-op.
+      function applyLeg(f, which, leg){
+        var lockedKey = which + 'Locked'; // 'departureLocked' | 'arrivalLocked'
+        if (f[lockedKey]) return; // already frozen — leave it exactly as-is
+
+        var el = which === 'departure' ? f.departEl : f.arriveEl;
+        var val = which === 'departure' ? f.departVal : f.arriveVal;
+        var label = which === 'departure' ? 'flight-depart' : 'flight-arrive';
+        var cls = statusLabel(leg.status) ? leg.status.replace('_', '-') : 'pending';
+
+        if (leg.time && val) val.textContent = leg.time;
+        if (el) el.className = 'flight-times ' + label + ' ' + cls;
+
+        if (leg.locked) f[lockedKey] = true; // freeze from here on
       }
 
       // Only ONE flight is ever "live" at a time — the earliest one not yet confirmed landed.
-      // It polls until AeroDataBox reports it landed, then the chain advances to the next flight.
+      // It polls until AeroDataBox reports arrival happened, then the chain advances.
       function trackLive(idx){
         if (idx >= flights.length) return;
         var f = flights[idx];
@@ -817,31 +842,17 @@
         function check(){
           pollStatus(f, function(data){
             if (!data) return; // unreachable this round — leave badge/times as-is
-            var status = data.status;
-            switch (status) {
-              case 'cancelled':
-                setBadge(f.badge, 'Cancelled', 'cancelled');
-                setLiveTimes(f, 'cancelled', data.departureTime, data.arrivalTime);
-                break;
-              case 'delayed':
-                setBadge(f.badge, 'Delayed', 'delayed');
-                setLiveTimes(f, 'delayed', data.departureTime, data.arrivalTime);
-                break;
-              case 'early':
-                setBadge(f.badge, 'Early', 'early');
-                setLiveTimes(f, 'early', data.departureTime, data.arrivalTime);
-                break;
-              case 'on_time':
-                setBadge(f.badge, 'On Time', 'on-time');
-                setLiveTimes(f, 'on-time', data.departureTime, data.arrivalTime);
-                break;
-              case 'landed':
-                setBadge(f.badge, 'Landed', 'landed');
-                setLiveTimes(f, 'landed', data.departureTime, data.arrivalTime);
-                clearTimeout(timer);
-                trackLive(idx + 1); // advance the chain — next flight goes live now; this one stops polling
-                return;
-              default: break; // unknown this round — leave badge as-is (stays gray until confirmed)
+
+            if (data.departure) applyLeg(f, 'departure', data.departure);
+            if (data.arrival) applyLeg(f, 'arrival', data.arrival);
+
+            var label = statusLabel(data.status);
+            if (label) setBadge(f.badge, label, data.status.replace('_', '-'));
+
+            if (data.status === 'landed') {
+              clearTimeout(timer);
+              trackLive(idx + 1); // advance the chain — next flight goes live now; this one stops polling
+              return;
             }
             scheduleNext();
           });
