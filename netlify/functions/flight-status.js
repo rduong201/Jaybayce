@@ -8,9 +8,17 @@
 //   GET /.netlify/functions/flight-status?flight=UA469&date=2026-09-15
 //
 // Returns:
-//   { status: "on_time" | "early" | "delayed" | "cancelled" | "landed" | "unknown",
-//     delayMinutes: number | null,
-//     raw: string | null }
+//   {
+//     status: "on_time" | "early" | "delayed" | "cancelled" | "landed" | "unknown",  // overall badge
+//     raw: string | null,
+//     departure: { time: "1:25 PM"|null, status: "on_time"|"early"|"delayed"|"unknown", locked: boolean },
+//     arrival:   { time: "2:52 PM"|null, status: "on_time"|"early"|"delayed"|"unknown", locked: boolean }
+//   }
+//
+// "locked" means AeroDataBox has reported an ACTUAL (not just predicted) time for
+// that leg — i.e. the plane genuinely departed or genuinely landed. Once locked,
+// the page stops overwriting that leg's time/color, even if later polls' overall
+// status changes for other reasons.
 
 exports.handler = async function (event) {
   const { flight, date } = event.queryStringParameters || {};
@@ -53,11 +61,12 @@ exports.handler = async function (event) {
     const data = await upstream.json();
     const entry = Array.isArray(data) ? data[0] : data;
 
+    const emptyLeg = { time: null, status: 'unknown', locked: false };
     if (!entry) {
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'unknown', delayMinutes: null, raw: null, departureTime: null, arrivalTime: null })
+        body: JSON.stringify({ status: 'unknown', raw: null, departure: emptyLeg, arrival: emptyLeg })
       };
     }
 
@@ -72,13 +81,12 @@ exports.handler = async function (event) {
       return null;
     }
 
-    // Format a local timestring (e.g. "2026-09-15 13:47-07:00" or "...T13:47:00-07:00")
-    // as "1:47 PM" — reads the HH:MM directly rather than reinterpreting it in the
-    // server's own timezone (the value is already the airport's local wall-clock time).
-    function formatLocalTime(field) {
-      const raw = extractLocalTimeString(field);
-      if (!raw || typeof raw !== 'string') return null;
-      const m = raw.match(/[T ](\d{2}):(\d{2})/);
+    // Format a local timestring as "1:47 PM" — reads the HH:MM directly rather than
+    // reinterpreting it in the server's own timezone (the value is already the
+    // airport's local wall-clock time).
+    function formatLocalTime(rawStr) {
+      if (!rawStr || typeof rawStr !== 'string') return null;
+      const m = rawStr.match(/[T ](\d{2}):(\d{2})/);
       if (!m) return null;
       let hour = parseInt(m[1], 10);
       const minute = m[2];
@@ -88,41 +96,47 @@ exports.handler = async function (event) {
       return hour + ':' + minute + ' ' + ampm;
     }
 
-    const rawStatus = (entry.status || '').toLowerCase();
-    let result = 'on_time';
-    let delayMinutes = null;
+    // Compute one leg (departure or arrival) independently: whether it's actually
+    // happened yet (locked), the best-known time to display, and on_time/early/
+    // delayed relative to the original schedule.
+    function computeLeg(leg) {
+      leg = leg || {};
+      const scheduledStr = extractLocalTimeString(leg.scheduledTime) || extractLocalTimeString(leg.scheduledTimeLocal) || null;
+      const actualStr = extractLocalTimeString(leg.actualTime) || extractLocalTimeString(leg.runwayTime) ||
+                         extractLocalTimeString(leg.actualTimeLocal) || null;
+      const revisedStr = extractLocalTimeString(leg.revisedTime) || extractLocalTimeString(leg.revisedTimeLocal) || null;
 
-    const dep = entry.departure || {};
-    const arr = entry.arrival || {};
-    const depBestStr = extractLocalTimeString(dep.actualTime) || extractLocalTimeString(dep.runwayTime) ||
-                        extractLocalTimeString(dep.revisedTime) || extractLocalTimeString(dep.scheduledTime) ||
-                        extractLocalTimeString(dep.actualTimeLocal) || extractLocalTimeString(dep.revisedTimeLocal) ||
-                        extractLocalTimeString(dep.scheduledTimeLocal) || null;
-    const arrBestStr = extractLocalTimeString(arr.actualTime) || extractLocalTimeString(arr.runwayTime) ||
-                        extractLocalTimeString(arr.revisedTime) || extractLocalTimeString(arr.scheduledTime) ||
-                        extractLocalTimeString(arr.actualTimeLocal) || extractLocalTimeString(arr.revisedTimeLocal) ||
-                        extractLocalTimeString(arr.scheduledTimeLocal) || null;
+      const locked = !!actualStr; // an ACTUAL time means this leg genuinely happened
+      const bestStr = actualStr || revisedStr || scheduledStr;
+      const time = formatLocalTime(bestStr);
 
-    if (rawStatus.indexOf('cancel') !== -1) {
-      result = 'cancelled';
-    } else if (rawStatus.indexOf('land') !== -1) {
-      result = 'landed';
-    } else {
-      const scheduledStr = extractLocalTimeString(dep.scheduledTime) || extractLocalTimeString(dep.scheduledTimeLocal) || null;
-      const revisedStr = extractLocalTimeString(dep.revisedTime) || extractLocalTimeString(dep.actualTime) ||
-                          extractLocalTimeString(dep.revisedTimeLocal) || extractLocalTimeString(dep.actualTimeLocal) || null;
-
-      if (scheduledStr && revisedStr) {
+      let status = 'unknown';
+      const compareStr = actualStr || revisedStr;
+      if (compareStr && scheduledStr) {
         const schedMs = Date.parse(scheduledStr);
-        const revMs = Date.parse(revisedStr);
-        if (!isNaN(schedMs) && !isNaN(revMs)) {
-          delayMinutes = Math.round((revMs - schedMs) / 60000);
-          if (delayMinutes > 10) result = 'delayed';
-          else if (delayMinutes < -10) result = 'early';
-          else result = 'on_time';
+        const compMs = Date.parse(compareStr);
+        if (!isNaN(schedMs) && !isNaN(compMs)) {
+          const diffMin = Math.round((compMs - schedMs) / 60000);
+          if (diffMin > 10) status = 'delayed';
+          else if (diffMin < -10) status = 'early';
+          else status = 'on_time';
         }
+      } else if (scheduledStr) {
+        status = 'on_time'; // no revision/actual info yet — assume on schedule
       }
+
+      return { time, status, locked };
     }
+
+    const rawStatus = (entry.status || '').toLowerCase();
+    const departure = computeLeg(entry.departure);
+    const arrival = computeLeg(entry.arrival);
+
+    // Overall badge: cancelled takes priority, then landed (arrival actually happened),
+    // otherwise reflects departure's live status.
+    let overall = departure.status === 'unknown' ? 'on_time' : departure.status;
+    if (arrival.locked) overall = 'landed';
+    if (rawStatus.indexOf('cancel') !== -1) overall = 'cancelled';
 
     return {
       statusCode: 200,
@@ -131,11 +145,10 @@ exports.handler = async function (event) {
         'Cache-Control': 'public, max-age=300' // 5 min — plenty fresh, saves quota
       },
       body: JSON.stringify({
-        status: result,
-        delayMinutes,
+        status: overall,
         raw: entry.status || null,
-        departureTime: formatLocalTime(depBestStr),
-        arrivalTime: formatLocalTime(arrBestStr)
+        departure,
+        arrival
       })
     };
   } catch (err) {
