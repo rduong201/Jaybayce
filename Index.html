@@ -917,8 +917,10 @@
 
       // Only ONE flight is ever "live" at a time — the earliest one not yet confirmed landed.
       // It polls until AeroDataBox reports arrival happened, then the chain advances.
+      var activeCheck = null; // points at whichever flight's check() is currently live
+
       function trackLive(idx){
-        if (idx >= flights.length) return;
+        if (idx >= flights.length) { activeCheck = null; return; }
         var f = flights[idx];
         var timer = null;
 
@@ -945,10 +947,17 @@
           timer = setTimeout(check, nextIntervalMs(f));
         }
 
+        activeCheck = check;
         check();
       }
 
       trackLive(startIdx);
+
+      // Background tabs / locked screens throttle setTimeout, so a scheduled re-check
+      // can sit stale for a long time. Re-check immediately once the tab is visible again.
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible' && activeCheck) activeCheck();
+      });
     })();
   </script>
 
@@ -1144,6 +1153,9 @@
 
       updateSchedule();
       setInterval(updateSchedule, 60 * 1000);
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible') updateSchedule();
+      });
     })();
 
     // ===== Auto-scroll to today's section on load (or closest upcoming day) =====
