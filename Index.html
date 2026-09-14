@@ -149,6 +149,7 @@
   .schedule-list{margin-top:10px;display:flex;flex-direction:column;gap:0;}
   .schedule-row{display:flex;gap:10px;padding:5px 0;border-bottom:1px dashed rgba(27,27,27,0.08);}
   .schedule-row.passed{opacity:0.45;}
+  .schedule-row.current .schedule-time{color:#1E8449;font-weight:700;animation:liveDimPulse 2.5s ease-in-out infinite;}
   .schedule-row.passed .schedule-time,
   .schedule-row.passed .schedule-event{text-decoration:line-through;}
   .schedule-time{font-family:'DM Mono', monospace;font-size:10.5px;color:var(--route-orange);white-space:nowrap;min-width:112px;flex-shrink:0;}
@@ -1084,38 +1085,54 @@
       setInterval(tick, 1000);
     })();
 
-    // ===== Strike through Day Schedule events once they've happened =====
+    // ===== Strike through past Day Schedule events, highlight the current one =====
     (function(){
-      var rows = document.querySelectorAll('.schedule-row[data-time]');
-      if (!rows.length) return;
-
-      function getDayBlockDate(el){
-        var block = el.closest('.day-block[data-date]');
-        if (!block) return null;
-        var parts = block.getAttribute('data-date').split('-').map(Number);
-        return new Date(parts[0], parts[1]-1, parts[2]);
-      }
+      var dayBlocks = Array.prototype.slice.call(document.querySelectorAll('.day-block[data-date]'))
+        .filter(function(b){ return b.querySelector('.schedule-row[data-time]'); });
+      if (!dayBlocks.length) return;
 
       function updateSchedule(){
         var now = new Date();
         var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        rows.forEach(function(row){
-          var dayDate = getDayBlockDate(row);
-          if (!dayDate) return;
+        dayBlocks.forEach(function(block){
+          var parts = block.getAttribute('data-date').split('-').map(Number);
+          var dayDate = new Date(parts[0], parts[1]-1, parts[2]);
+          var rows = Array.prototype.slice.call(block.querySelectorAll('.schedule-row[data-time]'));
 
           if (dayDate.getTime() < today.getTime()) {
-            row.classList.add('passed'); // whole day already happened
+            rows.forEach(function(row){ row.classList.add('passed'); row.classList.remove('current'); });
             return;
           }
           if (dayDate.getTime() > today.getTime()) {
-            row.classList.remove('passed'); // day hasn't happened yet
+            rows.forEach(function(row){ row.classList.remove('passed'); row.classList.remove('current'); });
             return;
           }
-          // it's today — compare the specific event time
-          var tp = row.getAttribute('data-time').split(':').map(Number);
-          var eventTime = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), tp[0], tp[1]);
-          row.classList.toggle('passed', now.getTime() >= eventTime.getTime());
+
+          // it's today — find the latest event time that has already started
+          var nowMinutes = now.getHours() * 60 + now.getMinutes();
+          var latestStarted = null;
+          rows.forEach(function(row){
+            var tp = row.getAttribute('data-time').split(':').map(Number);
+            var mins = tp[0] * 60 + tp[1];
+            row._mins = mins;
+            if (mins <= nowMinutes && (latestStarted === null || mins > latestStarted)) {
+              latestStarted = mins;
+            }
+          });
+
+          rows.forEach(function(row){
+            if (latestStarted === null || row._mins > latestStarted) {
+              row.classList.remove('passed');
+              row.classList.remove('current');
+            } else if (row._mins === latestStarted) {
+              row.classList.remove('passed');
+              row.classList.add('current');
+            } else {
+              row.classList.add('passed');
+              row.classList.remove('current');
+            }
+          });
         });
       }
 
