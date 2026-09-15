@@ -65,17 +65,22 @@ exports.handler = async function (event) {
 
     const data = await upstream.json();
 
-    function airportCode(airportObj) {
-      if (!airportObj) return null;
-      return (airportObj.iata || airportObj.icao || '').toUpperCase();
+    // Matches on either IATA ("LAX") or ICAO ("KLAX") — some AeroDataBox responses
+    // only populate one or the other, so comparing a single field can silently fail.
+    function airportMatches(airportObj, code) {
+      if (!airportObj || !code) return false;
+      var target = code.toUpperCase();
+      var iata = (airportObj.iata || '').toUpperCase();
+      var icao = (airportObj.icao || '').toUpperCase();
+      return iata === target || icao === target || icao === 'K' + target || icao.endsWith(target);
     }
 
     let entry = null;
     if (Array.isArray(data)) {
       if (dep || arr) {
         entry = data.find(function (e) {
-          var depMatch = !dep || airportCode(e.departure && e.departure.airport) === dep.toUpperCase();
-          var arrMatch = !arr || airportCode(e.arrival && e.arrival.airport) === arr.toUpperCase();
+          var depMatch = !dep || airportMatches(e.departure && e.departure.airport, dep);
+          var arrMatch = !arr || airportMatches(e.arrival && e.arrival.airport, arr);
           return depMatch && arrMatch;
         }) || null;
       }
