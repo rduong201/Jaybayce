@@ -5,7 +5,12 @@
 // and is never sent to or visible from the browser.
 //
 // Usage from the page:
-//   GET /.netlify/functions/flight-status?flight=UA469&date=2026-09-15
+//   GET /.netlify/functions/flight-status?flight=UA469&date=2026-09-15&dep=LAX&arr=SFO
+//
+// Some flight numbers cover multiple legs in one day (e.g. IAH→LAX→SFO all under
+// "UA469"). AeroDataBox returns an array covering every leg that day, so dep/arr
+// are used to pick out the specific segment we actually care about — without them
+// this can silently grab the wrong leg's times.
 //
 // Returns:
 //   {
@@ -21,7 +26,7 @@
 // status changes for other reasons.
 
 exports.handler = async function (event) {
-  const { flight, date } = event.queryStringParameters || {};
+  const { flight, date, dep, arr } = event.queryStringParameters || {};
 
   if (!flight || !date) {
     return {
@@ -59,7 +64,25 @@ exports.handler = async function (event) {
     }
 
     const data = await upstream.json();
-    const entry = Array.isArray(data) ? data[0] : data;
+
+    function airportCode(airportObj) {
+      if (!airportObj) return null;
+      return (airportObj.iata || airportObj.icao || '').toUpperCase();
+    }
+
+    let entry = null;
+    if (Array.isArray(data)) {
+      if (dep || arr) {
+        entry = data.find(function (e) {
+          var depMatch = !dep || airportCode(e.departure && e.departure.airport) === dep.toUpperCase();
+          var arrMatch = !arr || airportCode(e.arrival && e.arrival.airport) === arr.toUpperCase();
+          return depMatch && arrMatch;
+        }) || null;
+      }
+      if (!entry) entry = data[0] || null; // fallback: no dep/arr given, or no match found
+    } else {
+      entry = data;
+    }
 
     const emptyLeg = { time: null, status: 'unknown', locked: false };
     if (!entry) {
