@@ -1050,6 +1050,8 @@
       var timeEl = document.getElementById('countdownTime');
       if (!bar) return;
 
+      var BOARDING_LEAD_MS = 45 * 60 * 1000; // boarding typically starts ~45 min before departure
+
       var cards = Array.prototype.slice.call(document.querySelectorAll('.flight-card[data-flight]'));
       var flights = cards.map(function(card){
         var dateStr = card.getAttribute('data-flight-date');
@@ -1063,7 +1065,8 @@
         if (arrival.getTime() < departure.getTime()) {
           arrival.setDate(arrival.getDate() + 1); // arrival crosses midnight local
         }
-        return { departure: departure, arrival: arrival };
+        var boarding = new Date(departure.getTime() - BOARDING_LEAD_MS);
+        return { departure: departure, arrival: arrival, boarding: boarding };
       });
 
       function formatDuration(ms){
@@ -1083,19 +1086,19 @@
         }
         if (!active) { bar.hidden = true; return; }
 
-        var msToDeparture = active.departure.getTime() - now.getTime();
+        var msToBoarding = active.boarding.getTime() - now.getTime();
         var msToArrival = active.arrival.getTime() - now.getTime();
         var twelveHours = 12 * 60 * 60 * 1000;
 
-        if (msToDeparture > twelveHours) {
+        if (msToBoarding > twelveHours) {
           bar.hidden = true; // more than 12h before boarding — stay hidden
           return;
         }
 
         bar.hidden = false;
-        if (msToDeparture > 0) {
+        if (msToBoarding > 0) {
           labelEl.textContent = 'Boarding in';
-          timeEl.textContent = formatDuration(msToDeparture);
+          timeEl.textContent = formatDuration(msToBoarding);
         } else {
           labelEl.textContent = 'Landing in';
           timeEl.textContent = formatDuration(msToArrival);
